@@ -14,6 +14,7 @@ export enum TaskPriority {
 }
 
 export interface ITask {
+  _id: Schema.Types.ObjectId;
   title: string;
   description?: string;
   status: TaskStatus;
@@ -29,6 +30,7 @@ export interface ITaskBoard extends Document {
 }
 
 const taskSchema = new Schema<ITask>({
+  _id: { type: Schema.Types.ObjectId, auto: true },
   title: { type: String, required: true },
   description: { type: String },
   status: {

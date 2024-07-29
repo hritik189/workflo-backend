@@ -29,6 +29,7 @@ const taskBoards: Partial<ITaskBoard>[] = [
     userId: undefined, // Will be set after creating users
     tasks: [
       {
+        _id: new Schema.Types.ObjectId(),
         title: "Implement User Authentication",
         description:
           "Develop and integrate user authentication using email and password.",
@@ -37,6 +38,7 @@ const taskBoards: Partial<ITaskBoard>[] = [
         deadline: new Date("2024-08-15"),
       },
       {
+        _id: new Schema.Types.ObjectId(),
         title: "Design Home Page UI",
         description:
           "Develop and integrate user authentication using email and password.",
