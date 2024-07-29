@@ -67,18 +67,19 @@ The server will start on the port specified in the `.env` file (default is 8000)
 
 - **POST** `/api/auth/signup` - Register a new user
 - **POST** `/api/auth/login` - Login a user
+- **GET** `/api/auth/validate` - validate a user
 - **POST** `/api/auth/logout` - LogOut a user
 - 
 ### Task Board Endpoints
 
-- **POST** `/api/task-Board` - Create a new task board
-- **GET** `/api/task-Board/:userId` - Get a task board by user ID
-- **PUT** `/api/task-Board/:userId` - Update a task board by user ID
+- **POST** `/api/task-board` - Create a new task board
+- **GET** `/api/task-board/:userId` - Get a task board by user ID
+- **PUT** `/api/task-board/:userId` - Update a task board by user ID
 
 #### Delete Task
 
 - **Method:** DELETE
-- **URL:** `http://localhost:8000/api/taskBoard/{userId}/tasks/{taskId}`
+- **URL:** `http://localhost:8000/api/task-board/{userId}/task/{taskId}`
 - **Params:**
   - `userId` - The ID of the user
   - `taskId` - The ID of the task to be deleted
@@ -89,7 +90,7 @@ The server will start on the port specified in the `.env` file (default is 8000)
 ### Create Task Board
 
 - **Method:** POST
-- **URL:** `http://localhost:8000/api/taskBoard`
+- **URL:** `http://localhost:8000/api/task-board`
 - **Body:**
   ```json
   {
