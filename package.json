@@ -6,8 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only server.ts",
-    "seed": "ts-node ./src/scripts/seed.ts",
-    "build":"tsc"
+    "seed": "ts-node ./src/scripts/seed.ts"
   },
   "keywords": [],
   "author": "",
