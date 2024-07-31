@@ -8,7 +8,7 @@ import { generateToken } from "../utils/jwt";
 export const signupUser = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     const { name, email, password } = req.body;
-
+      console.log(name, email, password);
     if (!name || !email || !password) {
       return next(new ErrorHandler("Please provide all required fields", 400));
     }

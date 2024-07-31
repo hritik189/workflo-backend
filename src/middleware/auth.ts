@@ -5,13 +5,13 @@ import { User, IUser } from "../models/user.model";
 import { ErrorHandler } from "../utils/ErrorHandler";
 import { CatchAsyncError } from "./catchAsyncError";
 
-// interface CustomRequest extends Request {
-//   user?: IUser;
-// }
+interface CustomRequest extends Request {
+  user?: IUser;
+}
 
 // isAuthenticated middleware
 export const isAuthenticated = CatchAsyncError(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: CustomRequest, res: Response, next: NextFunction) => {
     const access_token = req.cookies.access_token;
 
     if (!access_token) {
