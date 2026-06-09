@@ -1,0 +1,5 @@
+// Top routes by 5xx count
+requests
+| where toint(resultCode) >= 500
+| summarize failures = count() by name, resultCode
+| top 10 by failures desc

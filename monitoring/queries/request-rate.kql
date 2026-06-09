@@ -1,0 +1,4 @@
+// Requests per minute
+requests
+| summarize requests = count() by bin(timestamp, 1m)
+| render timechart
