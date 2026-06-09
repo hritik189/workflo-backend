@@ -1,0 +1,38 @@
+# dev overrides for the workflo-api chart.
+# Fill the three "<from terraform output ...>" values after `terraform apply`:
+#   terraform output -raw api_identity_client_id   -> serviceAccount.clientId
+#   terraform output -raw key_vault_name           -> keyVault.name
+#   terraform output -raw tenant_id                -> keyVault.tenantId
+replicaCount: 1
+
+image:
+  repository: acrworkflodev01.azurecr.io/workflo-api
+  tag: latest
+
+serviceAccount:
+  clientId: "<from terraform output: api_identity_client_id>"
+
+keyVault:
+  name: "<from terraform output: key_vault_name>"
+  tenantId: "<from terraform output: tenant_id>"
+
+env:
+  NODE_ENV: production
+  PORT: "8080"
+  ORIGIN: "https://workflo-dev.example.com"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: workflo-dev.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: workflo-dev-tls
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70

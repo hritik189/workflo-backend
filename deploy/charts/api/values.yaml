@@ -1,0 +1,74 @@
+# Default values for the workflo-api chart. Per-environment overrides live in
+# deploy/values/<env>.yaml. Values marked "from terraform output" must be filled in.
+
+replicaCount: 2
+
+image:
+  repository: acrworkflodev01.azurecr.io/workflo-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Workload Identity: the ServiceAccount is annotated with the user-assigned identity's
+# client ID (terraform output `api_identity_client_id`), and pods opt in via the
+# azure.workload.identity/use label set on the pod template.
+serviceAccount:
+  name: workflo-api
+  clientId: "" # from terraform output: api_identity_client_id
+
+# Azure Key Vault via the Secrets Store CSI driver. Each entry maps a Key Vault
+# secret to the environment variable the app expects.
+keyVault:
+  name: "" # from terraform output: key_vault_name
+  tenantId: "" # from terraform output: tenant_id
+  secrets:
+    - secretName: DB-URL
+      envName: DB_URL
+    - secretName: JWT-SECRET
+      envName: JWT_SECRET
+    - secretName: APPINSIGHTS-CONNECTION-STRING
+      envName: APPLICATIONINSIGHTS_CONNECTION_STRING
+
+containerPort: 8080
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Non-secret configuration injected as plain env vars.
+env:
+  NODE_ENV: production
+  PORT: "8080"
+  ORIGIN: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  host: workflo.example.com
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: workflo-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readiness:
+    path: /ready
+    initialDelaySeconds: 5
+    periodSeconds: 5

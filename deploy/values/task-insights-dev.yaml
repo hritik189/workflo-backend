@@ -1,0 +1,37 @@
+# Deploys the task-insights service using the SAME generic chart as the api
+# (deploy/charts/api), overriding image, identity, secrets, and config:
+#   helm upgrade --install workflo-task-insights deploy/charts/api \
+#     -n workflo -f deploy/values/task-insights-dev.yaml
+fullnameOverride: workflo-task-insights
+
+image:
+  repository: acrworkflodev01.azurecr.io/workflo-task-insights
+  tag: latest
+
+serviceAccount:
+  name: workflo-task-insights
+  clientId: "<from terraform output: task_insights_identity_client_id>"
+
+keyVault:
+  name: "<from terraform output: key_vault_name>"
+  tenantId: "<from terraform output: tenant_id>"
+  secrets:
+    - secretName: AI-LANGUAGE-KEY
+      envName: AI_LANGUAGE_KEY
+    - secretName: APPINSIGHTS-CONNECTION-STRING
+      envName: APPLICATIONINSIGHTS_CONNECTION_STRING
+
+env:
+  NODE_ENV: production
+  PORT: "8080"
+  AI_LANGUAGE_ENDPOINT: "<from terraform output: ai_language_endpoint>"
+
+# Internal service — reached by the api in-cluster, not exposed via ingress.
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
