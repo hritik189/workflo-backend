@@ -1,119 +1,131 @@
+# api — Task Board service
 
-# Task Board API
+A REST API for managing task boards, built with **TypeScript, Express, and Mongoose/MongoDB**,
+with JWT cookie authentication. This is the primary workload of the [Workflo platform](../../README.md).
 
-This project provides a Task Board API, allowing users to manage their tasks. The API is built using TypeScript, Node.js, Express, and MongoDB.
+- [Run it](#run-it)
+- [Environment variables](#environment-variables)
+- [Scripts](#scripts)
+- [API endpoints](#api-endpoints)
+- [Project structure & conventions](#project-structure--conventions)
+- [Container & deploy](#container--deploy)
 
-## Features
+## Run it
 
-- User authentication and management
-- Task board creation and management
-- Task management within task boards
-- CRUD operations for tasks and task boards
+### With Docker Compose (recommended — includes MongoDB)
 
-## Requirements
-
-- Node.js (v14 or later)
-- MongoDB (local or cloud instance)
-
-## Setup Instructions
-
-### 1. Clone the repository
+From the repository root:
 
 ```sh
-git clone https://github.com/hritik189/workflo-backend.git
-cd workflo-backend
+docker compose up --build
+# api is now on http://localhost:8080
 ```
 
-### 2. Install dependencies
+### Directly (needs a running MongoDB)
 
 ```sh
+cd apps/api
 npm install
+npm run dev           # hot-reload dev server on PORT (default 8080)
 ```
 
-### 3. Set up environment variables
+Create a `.env` file in `apps/api/` (loaded automatically) — see variables below.
 
-Create a `.env` file in the root directory of the project and add the following variables:
+## Environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DB_URL` | yes | — | MongoDB / Cosmos connection string. The database name is fixed to `workflo_DB`. |
+| `JWT_SECRET` | yes | — | Secret used to sign JWTs. |
+| `PORT` | no | `8080` | Port the server listens on. |
+| `ORIGIN` | no | — | Allowed CORS origin (note: the dev CORS list is currently hardcoded to localhost:3000 / :5173). |
+| `NODE_ENV` | no | `development` | `production` makes the auth cookie `secure`. |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | — | When set, exports telemetry to Application Insights; no-op otherwise. |
+
+Example `.env`:
 
 ```env
-PORT=8000
+PORT=8080
+DB_URL=mongodb://localhost:27017
+JWT_SECRET=replace-me
 ORIGIN=http://localhost:3000
-MONGODB_URI=mongodb://localhost:27017/
-JWT_SECRET=your_jwt_secret
 ```
 
-### 4. Connect to MongoDB
-
-Make sure your MongoDB server is running. If you are using a cloud instance, update the `MONGODB_URI` in the `.env` file accordingly.
-
-### 5. Seed the database
-
-To seed the database with initial data, run the following script:
+## Scripts
 
 ```sh
-npm run seed
+npm run dev         # hot-reload dev server (ts-node-dev, transpile-only)
+npm run build       # compile TypeScript to dist/ (fails on type errors)
+npm start           # run the compiled server (node dist/server.js)
+npm run typecheck   # type-check only, no emit
+npm run seed        # wipe & reseed the database (User + TaskBoard) — destructive
 ```
 
-### 6. Start the server
+## API endpoints
 
-```sh
-npm run dev
+### Health (used by Kubernetes probes)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | Liveness — always `200` while the process is up (DB-independent). |
+| GET | `/ready` | Readiness — `200` only when MongoDB is connected, else `503`. |
+
+### Authentication
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/auth/signup` | — | Register a new user |
+| POST | `/api/auth/login` | — | Log in (sets `access_token` cookie) |
+| GET | `/api/auth/validate` | cookie | Validate the current session |
+| POST | `/api/auth/logout` | cookie | Log out |
+
+### Task boards (all require the auth cookie)
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/task-board` | Create a task board |
+| GET | `/api/task-board/:userId` | Get a user's task board |
+| PUT | `/api/task-board/:userId` | Replace a board's tasks |
+| DELETE | `/api/task-board/:userId/task/:taskId` | Delete one task |
+
+Example create body:
+
+```json
+{
+  "userId": "<user id>",
+  "tasks": [
+    { "title": "Task 1", "description": "…", "status": "To-Do",       "priority": "Medium", "deadline": "2024-07-29" },
+    { "title": "Task 2", "description": "…", "status": "In Progress", "priority": "Urgent", "deadline": "2024-07-30" }
+  ]
+}
 ```
 
-The server will start on the port specified in the `.env` file (default is 8000).
+`status` ∈ `To-Do | In Progress | Under Review | Completed`; `priority` ∈ `Low | Medium | Urgent`.
 
-## API Endpoints
+## Project structure & conventions
 
-### User Endpoints
+```
+apps/api/
+├── server.ts              # entry point (telemetry → app.listen → dbConnect)
+├── src/
+│   ├── app/app.ts         # Express app + global middleware + /health, /ready
+│   ├── routes/            # /api/auth and /api/task-board
+│   ├── controllers/       # request handlers
+│   ├── models/            # Mongoose models (User, TaskBoard)
+│   ├── middleware/        # auth, CatchAsyncError, ErrorMiddleware
+│   ├── utils/             # ErrorHandler, jwt
+│   ├── config/            # env + dbConnect
+│   └── telemetry.ts       # Azure Monitor OpenTelemetry (no-op without a connection string)
+└── Dockerfile             # multi-stage, distroless, non-root
+```
 
-- **POST** `/api/auth/signup` - Register a new user
-- **POST** `/api/auth/login` - Login a user
-- **GET** `/api/auth/validate` - validate a user
-- **POST** `/api/auth/logout` - LogOut a user
-- 
-### Task Board Endpoints
+- **Errors**: handlers are wrapped in `CatchAsyncError` and throw via
+  `next(new ErrorHandler(message, statusCode))`; a final `ErrorMiddleware` formats the response.
+- **Auth**: JWT in an `httpOnly` `access_token` cookie; `isAuthenticated` loads `req.user`.
+- **Data**: one `TaskBoard` per user with an embedded `tasks` array.
 
-- **POST** `/api/task-board` - Create a new task board
-- **GET** `/api/task-board/:userId` - Get a task board by user ID
-- **PUT** `/api/task-board/:userId` - Update a task board by user ID
+## Container & deploy
 
-#### Delete Task
-
-- **Method:** DELETE
-- **URL:** `http://localhost:8000/api/task-board/{userId}/task/{taskId}`
-- **Params:**
-  - `userId` - The ID of the user
-  - `taskId` - The ID of the task to be deleted
-
-
-## Postman Setup
-
-### Create Task Board
-
-- **Method:** POST
-- **URL:** `http://localhost:8000/api/task-board`
-- **Body:**
-  ```json
-  {
-    "userId": "user_id_here",
-    "tasks": [
-      {
-        "title": "Task 1",
-        "description": "Task 1 description",
-        "status": "To-Do",
-        "priority": "Medium",
-        "deadline": "2024-07-29"
-      },
-      {
-        "title": "Task 2",
-        "description": "Task 2 description",
-        "status": "In Progress",
-        "priority": "Urgent",
-        "deadline": "2024-07-30"
-      }
-    ]
-  }
-  ```
-
-## License
-
-This project is licensed under the MIT License.
+The `Dockerfile` builds a small distroless image. In the platform it's built and pushed by CI
+([pipelines](../../pipelines/README.md)) and deployed to AKS by Helm
+([deploy](../../deploy/README.md)); secrets come from Key Vault at runtime.
