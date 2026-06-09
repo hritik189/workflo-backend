@@ -1,0 +1,4 @@
+resource_group_name  = "rg-tfstate"
+storage_account_name = "sttfstateworkflo"
+container_name       = "tfstate"
+key                  = "workflo-staging.tfstate"

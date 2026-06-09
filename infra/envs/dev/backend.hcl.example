@@ -1,0 +1,7 @@
+# Copy to backend.hcl and edit. The storage account name must be globally unique.
+# Create these once (see infra/README.md), then run:
+#   terraform init -backend-config=backend.hcl
+resource_group_name  = "rg-tfstate"
+storage_account_name = "sttfstateworkflo"
+container_name       = "tfstate"
+key                  = "workflo-dev.tfstate"
