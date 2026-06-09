@@ -1,0 +1,50 @@
+# Local end-to-end stack: API + MongoDB.
+# Mirrors the Cosmos DB (Mongo API) target — the app only needs a Mongo
+# connection string in DB_URL, so local Mongo and Cosmos are interchangeable.
+#
+#   docker compose up --build
+#   curl http://localhost:8080/health   ->  {"status":"ok",...}
+#   curl http://localhost:8080/ready    ->  {"status":"ready","db":"connected"}
+services:
+  mongo:
+    image: mongo:7
+    container_name: workflo-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  api:
+    build:
+      context: ./apps/api
+    container_name: workflo-api
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      NODE_ENV: development
+      ORIGIN: http://localhost:3000
+      # 'mongo' is the compose service name, resolvable on the compose network.
+      DB_URL: mongodb://mongo:27017
+      JWT_SECRET: dev-secret-change-me
+
+  task-insights:
+    build:
+      context: ./apps/task-insights
+    container_name: workflo-task-insights
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: "8080"
+      NODE_ENV: development
+      # Set these to exercise /insights locally; otherwise /ready returns 503.
+      AI_LANGUAGE_ENDPOINT: ""
+      AI_LANGUAGE_KEY: ""
+
+volumes:
+  mongo-data:

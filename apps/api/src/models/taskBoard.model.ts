@@ -1,4 +1,4 @@
-import { Schema, Document, model, Model } from "mongoose";
+import { Schema, Document, model, Model, Types } from "mongoose";
 
 export enum TaskStatus {
   TODO = "To-Do",
@@ -14,7 +14,7 @@ export enum TaskPriority {
 }
 
 export interface ITask {
-  _id: Schema.Types.ObjectId;
+  _id: Types.ObjectId;
   title: string;
   description?: string;
   status: TaskStatus;

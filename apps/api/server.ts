@@ -1,3 +1,5 @@
+// Must be first: initializes Azure Monitor OpenTelemetry before express/http load.
+import "./src/telemetry";
 import { app } from "./src/app/app";
 import { port } from "./src/config/config";
 import { dbConnect } from "./src/config/dbConnect";
