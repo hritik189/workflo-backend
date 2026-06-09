@@ -1,0 +1,27 @@
+# Reusable CI steps for a Node/TypeScript service: install, type-check, test, build.
+# Parameterized by workingDir so it serves apps/api today and apps/task-insights later.
+parameters:
+  - name: workingDir
+    type: string
+
+steps:
+  - task: NodeTool@0
+    displayName: Use Node 20
+    inputs:
+      versionSpec: "20.x"
+
+  - script: npm ci
+    workingDirectory: ${{ parameters.workingDir }}
+    displayName: Install dependencies
+
+  - script: npm run typecheck
+    workingDirectory: ${{ parameters.workingDir }}
+    displayName: Type-check (tsc --noEmit)
+
+  - script: npm test
+    workingDirectory: ${{ parameters.workingDir }}
+    displayName: Unit tests
+
+  - script: npm run build
+    workingDirectory: ${{ parameters.workingDir }}
+    displayName: Compile (tsc, fails on type errors)

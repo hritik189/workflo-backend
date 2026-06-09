@@ -1,0 +1,79 @@
+# CD: deploy the api Helm chart to AKS.
+# Triggers when CI publishes a new image (pipeline resource) or when deploy/** changes on main.
+# Deploys through the 'workflo-dev' Environment — add a manual-approval check there if desired.
+#
+# Required Azure DevOps setup:
+#  - ARM service connection named by $(azureServiceConnection)
+#  - Its identity needs "Azure Kubernetes Service Cluster User" on the cluster
+name: cd-$(Date:yyyyMMdd)-$(Rev:r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - deploy/**
+      - pipelines/cd.yml
+
+resources:
+  pipelines:
+    - pipeline: ci
+      source: ci
+      trigger:
+        branches:
+          include:
+            - main
+
+variables:
+  - name: azureServiceConnection
+    value: workflo-azure
+  - name: resourceGroup
+    value: rg-workflo-dev
+  - name: aksCluster
+    value: aks-workflo-dev
+  - name: namespace
+    value: workflo
+  - name: chartPath
+    value: deploy/charts/api
+  - name: valuesFile
+    value: deploy/values/dev.yaml
+  - name: imageRepository
+    value: acrworkflodev01.azurecr.io/workflo-api
+
+stages:
+  - stage: deploy_dev
+    displayName: Deploy to dev
+    jobs:
+      - deployment: helm_deploy
+        displayName: helm upgrade --install
+        environment: workflo-dev
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  displayName: Deploy chart to AKS
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      set -euo pipefail
+                      az aks get-credentials \
+                        --resource-group "$(resourceGroup)" \
+                        --name "$(aksCluster)" \
+                        --overwrite-existing
+                      # Deploy the image built by the triggering CI run; fall back to this commit.
+                      IMAGE_TAG="$(resources.pipeline.ci.sourceCommit)"
+                      IMAGE_TAG="${IMAGE_TAG:-$(Build.SourceVersion)}"
+                      echo "Deploying image tag: ${IMAGE_TAG}"
+                      helm upgrade --install workflo-api "$(chartPath)" \
+                        --namespace "$(namespace)" --create-namespace \
+                        --values "$(valuesFile)" \
+                        --set image.repository="$(imageRepository)" \
+                        --set image.tag="${IMAGE_TAG}" \
+                        --wait --timeout 5m

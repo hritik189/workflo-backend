@@ -1,0 +1,106 @@
+# Terraform pipeline for infra/envs/dev.
+#  PRs touching infra/  -> init + fmt-check + validate + plan (review the plan in the PR)
+#  commits to main      -> gated apply via the 'workflo-infra-dev' Environment (add an
+#                          approval check on that Environment in Azure DevOps)
+#
+# Required Azure DevOps setup:
+#  - ARM service connection named by $(azureServiceConnection) (workload-identity federation)
+#  - Secret pipeline variable JWT_SECRET (mapped to TF_VAR_jwt_secret)
+#  - backend.hcl present (or reconstruct it in a step from variables)
+name: infra-$(Date:yyyyMMdd)-$(Rev:r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/**
+      - pipelines/infra.yml
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - infra/**
+
+variables:
+  - name: tfWorkingDir
+    value: infra/envs/dev
+  - name: azureServiceConnection
+    value: workflo-azure
+  - name: TF_VERSION
+    value: "1.9.5"
+
+stages:
+  - stage: validate_plan
+    displayName: Validate & Plan
+    jobs:
+      - job: plan
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - bash: |
+              set -euo pipefail
+              curl -fsSL "https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip" -o terraform.zip
+              unzip -o terraform.zip
+              sudo mv terraform /usr/local/bin/
+              terraform version
+            displayName: Install Terraform $(TF_VERSION)
+
+          - task: AzureCLI@2
+            displayName: init / fmt / validate / plan
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              workingDirectory: $(tfWorkingDir)
+              inlineScript: |
+                set -euo pipefail
+                terraform init -backend-config=backend.hcl
+                terraform fmt -recursive -check
+                terraform validate
+                terraform plan -var-file=dev.tfvars
+            env:
+              TF_VAR_jwt_secret: $(JWT_SECRET)
+              ARM_USE_AZUREAD: "true"
+
+  - stage: apply
+    displayName: Apply (gated)
+    dependsOn: validate_plan
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: apply
+        displayName: terraform apply
+        # Configure a manual-approval check on this Environment in Azure DevOps.
+        environment: workflo-infra-dev
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - bash: |
+                    set -euo pipefail
+                    curl -fsSL "https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip" -o terraform.zip
+                    unzip -o terraform.zip
+                    sudo mv terraform /usr/local/bin/
+                  displayName: Install Terraform $(TF_VERSION)
+
+                - task: AzureCLI@2
+                  displayName: terraform apply
+                  inputs:
+                    azureSubscription: $(azureServiceConnection)
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    workingDirectory: $(tfWorkingDir)
+                    inlineScript: |
+                      set -euo pipefail
+                      terraform init -backend-config=backend.hcl
+                      terraform apply -auto-approve -var-file=dev.tfvars
+                  env:
+                    TF_VAR_jwt_secret: $(JWT_SECRET)
+                    ARM_USE_AZUREAD: "true"

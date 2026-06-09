@@ -1,0 +1,35 @@
+# DevSecOps gates that complement the Trivy image scan in ci.yml:
+#  - gitleaks : secret scanning across the repo
+#  - checkov  : Terraform/IaC misconfiguration scanning
+# Runs on every PR and on main.
+name: security-$(Date:yyyyMMdd)-$(Rev:r)
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+stages:
+  - stage: security
+    displayName: Security scans
+    jobs:
+      - job: scans
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - bash: |
+              set -euo pipefail
+              docker run --rm -v "$(Build.SourcesDirectory):/repo" \
+                zricethezav/gitleaks:latest detect --source=/repo --no-banner --redact
+            displayName: gitleaks (secret scan)
+
+          - bash: |
+              set -euo pipefail
+              pip install --quiet checkov
+              checkov -d infra --compact --quiet
+            displayName: Checkov (Terraform IaC scan)

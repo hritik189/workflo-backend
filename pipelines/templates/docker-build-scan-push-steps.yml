@@ -1,0 +1,45 @@
+# Reusable steps: build image -> Trivy scan (gate on HIGH/CRITICAL) -> push to ACR.
+# The scan runs BEFORE the push, so a vulnerable image never reaches the registry.
+parameters:
+  - name: workingDir
+    type: string
+  - name: imageName
+    type: string
+  - name: acrServiceConnection
+    type: string
+  - name: acrLoginServer
+    type: string
+  - name: tag
+    type: string
+
+steps:
+  - task: Docker@2
+    displayName: Build image
+    inputs:
+      command: build
+      containerRegistry: ${{ parameters.acrServiceConnection }}
+      repository: ${{ parameters.imageName }}
+      dockerfile: ${{ parameters.workingDir }}/Dockerfile
+      buildContext: ${{ parameters.workingDir }}
+      tags: |
+        ${{ parameters.tag }}
+        latest
+
+  - bash: |
+      set -euo pipefail
+      curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+        | sh -s -- -b /usr/local/bin
+      IMAGE="${{ parameters.acrLoginServer }}/${{ parameters.imageName }}:${{ parameters.tag }}"
+      echo "Scanning $IMAGE ..."
+      trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$IMAGE"
+    displayName: Trivy image scan (fail on HIGH/CRITICAL)
+
+  - task: Docker@2
+    displayName: Push image to ACR
+    inputs:
+      command: push
+      containerRegistry: ${{ parameters.acrServiceConnection }}
+      repository: ${{ parameters.imageName }}
+      tags: |
+        ${{ parameters.tag }}
+        latest

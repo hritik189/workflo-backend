@@ -1,0 +1,85 @@
+# CI for both services (api, task-insights).
+#  PRs to main     -> build & test only
+#  commits to main -> build & test, then build/scan/push images to ACR
+#
+# Required Azure DevOps setup:
+#  - Docker Registry service connection named by $(acrServiceConnection)
+#  - Update $(acrLoginServer) to match infra output `acr_login_server`
+name: ci-$(Date:yyyyMMdd)-$(Rev:r)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - apps/api/**
+      - apps/task-insights/**
+      - pipelines/ci.yml
+      - pipelines/templates/**
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - apps/api/**
+      - apps/task-insights/**
+
+variables:
+  - name: acrLoginServer
+    value: acrworkflodev01.azurecr.io
+  - name: acrServiceConnection
+    value: workflo-acr
+
+stages:
+  - stage: build_test
+    displayName: Build & Test
+    jobs:
+      - job: api
+        displayName: api — type-check, test, build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - template: templates/node-ci-steps.yml
+            parameters:
+              workingDir: apps/api
+      - job: task_insights
+        displayName: task-insights — type-check, test, build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - template: templates/node-ci-steps.yml
+            parameters:
+              workingDir: apps/task-insights
+
+  - stage: image
+    displayName: Image build, scan & push
+    dependsOn: build_test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: api_image
+        displayName: api image
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - template: templates/docker-build-scan-push-steps.yml
+            parameters:
+              workingDir: apps/api
+              imageName: workflo-api
+              acrServiceConnection: $(acrServiceConnection)
+              acrLoginServer: $(acrLoginServer)
+              tag: $(Build.SourceVersion)
+      - job: task_insights_image
+        displayName: task-insights image
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - template: templates/docker-build-scan-push-steps.yml
+            parameters:
+              workingDir: apps/task-insights
+              imageName: workflo-task-insights
+              acrServiceConnection: $(acrServiceConnection)
+              acrLoginServer: $(acrLoginServer)
+              tag: $(Build.SourceVersion)
